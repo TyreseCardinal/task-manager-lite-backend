@@ -8,14 +8,39 @@ api_bp = Blueprint('api', __name__)
 
 @api_bp.route('/tasks', methods=['GET'])
 def get_tasks():
-    tasks = Task.query.all()
-    return jsonify([{
-        'id': t.id,
-        'title': t.title,
-        'completed': t.completed,
-        'created_at': t.created_at,
-        'updated_at': t.updated_at
-    } for t in tasks]), 200
+    # Get pagination parameters from the query string (defaults: page=1, limit=10)
+    page = request.args.get('page', 1, type=int)
+    limit = request.args.get('limit', 10, type=int)
+
+    # If no pagination params are passed, fetch all tasks (no pagination)
+    if not request.args:
+        tasks = Task.query.all()
+    else:
+        # Calculate the offset for the database query
+        offset = (page - 1) * limit
+        tasks = Task.query.offset(offset).limit(limit).all()  # Fetch tasks with pagination
+
+    # Get the total number of tasks to calculate total pages
+    total_tasks = Task.query.count()
+
+    # Prepare the response with paginated data and metadata
+    response = {
+        'tasks': [{
+            'id': t.id,
+            'title': t.title,
+            'completed': t.completed,
+            'created_at': t.created_at,
+            'updated_at': t.updated_at
+        } for t in tasks],
+        'page': page,
+        'limit': limit,
+        'total': total_tasks,
+        'total_pages': (total_tasks + limit - 1) // limit  # Calculate the number of pages
+    }
+
+    # Return the paginated response
+    return jsonify(response), 200
+
 
 @api_bp.route('/tasks/<int:task_id>', methods=['GET'])
 def get_task(task_id):
